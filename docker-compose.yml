@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  medicine-ocr:
+    build: .
+    ports:
+      - "8000:8000"  # API伺服器端口
+      - "8501:8501"  # Streamlit前端端口
+    volumes:
+      - ./uploads:/app/uploads  # 持久化上傳的圖片
+      - ./models:/app/models    # 持久化模型
+      - ./medicine_ocr.db:/app/medicine_ocr.db  # 持久化SQLite資料庫
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DB_ENGINE=sqlite:///medicine_ocr.db
+      - TESSERACT_CMD=/usr/bin/tesseract
+      - FASTTEXT_MODEL_PATH=/app/models/fasttext/lid.176.bin
+      - YOLO_MODEL_PATH=/app/models/yolo/best.pt
+      - API_URL=http://localhost:8000/api
+    restart: unless-stopped 
