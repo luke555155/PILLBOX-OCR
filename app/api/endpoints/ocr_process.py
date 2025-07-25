@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from typing import List, Optional
 from pydantic import BaseModel
 from pathlib import Path as PathLib
+import traceback
 
 from app.modules.image_processing.preprocess import preprocess_image
 from app.modules.image_processing.object_detection import detect_medicine_box
@@ -118,8 +119,9 @@ async def process_ocr(request: OCRRequest, background_tasks: BackgroundTasks):
         return results
     
     except Exception as e:
-        logger.error(f"處理OCR時發生錯誤: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"處理OCR時發生錯誤: {str(e)}")
+        tb = traceback.format_exc()
+        logger.error(f"處理OCR時發生錯誤: {str(e)}\n{tb}")
+        raise HTTPException(status_code=500, detail=f"處理OCR時發生錯誤: {str(e)}\n{tb}")
 
 @router.get("/ocr-result/{image_id}", response_model=OCRResponse)
 async def get_ocr_result(image_id: str = Path(..., description="圖像ID")):

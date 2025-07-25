@@ -20,6 +20,7 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 class ImageUploadResponse(BaseModel):
     """圖像上傳回應模型"""
     image_ids: List[str]
+    batch_id: str
     message: str
 
 
@@ -78,6 +79,7 @@ async def upload_images(
         
         return ImageUploadResponse(
             image_ids=image_ids,
+            batch_id=batch_id,
             message=f"成功上傳了 {len(image_ids)} 張圖像"
         )
     

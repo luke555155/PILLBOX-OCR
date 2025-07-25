@@ -64,6 +64,10 @@ with tab1:
         else:
             with st.spinner("上傳圖像中..."):
                 # 準備上傳的檔案
+                if front_image:
+                    front_image.seek(0)
+                if back_image:
+                    back_image.seek(0)
                 files = {"front_image": front_image}
                 if back_image:
                     files["back_image"] = back_image
@@ -78,14 +82,15 @@ with tab1:
                     if upload_response.status_code == 200:
                         upload_data = upload_response.json()
                         image_ids = upload_data.get("image_ids", [])
-                        
+                        batch_id = upload_data.get("batch_id", None)
                         st.success(f"成功上傳了 {len(image_ids)} 張圖像")
                         
                         # 儲存圖像ID和批次ID到session_state以便後續處理
                         st.session_state.image_ids = image_ids
+                        st.session_state.batch_id = batch_id
                         
                         # 自動切換到處理結果標籤頁並開始處理
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.error(f"上傳失敗: {upload_response.text}")
                         
@@ -106,7 +111,7 @@ with tab2:
                         f"{API_URL}/process-ocr",
                         json={
                             "image_ids": st.session_state.image_ids,
-                            "batch_id": st.session_state.image_ids[0].split("_")[0]  # 使用第一個圖像ID的前綴作為批次ID
+                            "batch_id": st.session_state.batch_id
                         }
                     )
                     
@@ -189,7 +194,7 @@ with tab2:
                 if "ocr_results" in st.session_state:
                     del st.session_state.ocr_results
                 # 切換回上傳標籤頁
-                st.experimental_rerun()
+                st.rerun()
     else:
         st.info("請先在「上傳圖像」標籤頁上傳藥盒圖像")
 
