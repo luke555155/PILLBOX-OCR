@@ -155,3 +155,49 @@ def detect_with_contours(image: np.ndarray) -> np.ndarray:
     except Exception as e:
         logger.error(f"輪廓檢測失敗: {str(e)}")
         return image  # 如有錯誤，返回原始圖像 
+
+def get_box_image(image: np.ndarray, box: list) -> np.ndarray:
+    x1, y1, x2, y2 = box
+    return image[y1:y2, x1:x2]
+
+def draw_box_on_image(image: np.ndarray, box: list, color=(0,255,0), thickness=2) -> np.ndarray:
+    img = image.copy()
+    x1, y1, x2, y2 = box
+    import cv2
+    cv2.rectangle(img, (x1, y1), (x2, y2), color, thickness)
+    return img
+
+def image_to_base64(image: np.ndarray) -> str:
+    import cv2, base64
+    _, buffer = cv2.imencode('.jpg', image)
+    return base64.b64encode(buffer).decode('utf-8')
+
+def detect_medicine_box_v2(image: np.ndarray) -> dict:
+    """
+    只偵測一次，回傳box、confidence、class、裁切圖、畫框圖（base64）
+    """
+    if not YOLO_AVAILABLE:
+        return {"box": None, "confidence": None, "class": None, "cropped": None, "image_with_box": None}
+    try:
+        results = model(image)
+        boxes = results[0].boxes if isinstance(results, list) and len(results) > 0 else None
+        if boxes is None or boxes.xyxy is None or boxes.xyxy.shape[0] == 0:
+            return {"box": None, "confidence": None, "class": None, "cropped": None, "image_with_box": None}
+        detection = boxes.xyxy[0].cpu().numpy()
+        x1, y1, x2, y2 = map(int, detection[:4])
+        conf = float(boxes.conf[0]) if hasattr(boxes, 'conf') else 0.0
+        cls = int(boxes.cls[0]) if hasattr(boxes, 'cls') else None
+        box = [int(x1), int(y1), int(x2), int(y2)]
+        cropped = get_box_image(image, box)
+        image_with_box = draw_box_on_image(image, box)
+        img_b64 = image_to_base64(image_with_box)
+        return {
+            "box": box,
+            "confidence": conf,
+            "class": cls,
+            "cropped": cropped,
+            "image_with_box": img_b64
+        }
+    except Exception as e:
+        logger.error(f"YOLO檢測失敗: {str(e)}")
+        return {"box": None, "confidence": None, "class": None, "cropped": None, "image_with_box": None} 
