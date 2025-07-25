@@ -3,8 +3,28 @@ import numpy as np
 import logging
 from pathlib import Path
 from typing import Union, Optional, Tuple
+from PIL import Image, ExifTags
 
 logger = logging.getLogger(__name__)
+
+def load_image_with_exif(path):
+    image = Image.open(path)
+    try:
+        for orientation in ExifTags.TAGS.keys():
+            if ExifTags.TAGS[orientation] == 'Orientation':
+                break
+        exif = image._getexif()
+        if exif is not None:
+            orientation_value = exif.get(orientation, None)
+            if orientation_value == 3:
+                image = image.rotate(180, expand=True)
+            elif orientation_value == 6:
+                image = image.rotate(270, expand=True)
+            elif orientation_value == 8:
+                image = image.rotate(90, expand=True)
+    except Exception:
+        pass
+    return np.array(image)
 
 def preprocess_image(image_path: Union[str, Path], resize_dim: Optional[Tuple[int, int]] = None) -> np.ndarray:
     """
@@ -20,8 +40,9 @@ def preprocess_image(image_path: Union[str, Path], resize_dim: Optional[Tuple[in
     logger.info(f"開始預處理圖像: {image_path}")
     
     try:
-        # 讀取圖像
-        image = cv2.imread(str(image_path))
+        # 讀取圖像（自動校正EXIF方向）
+        image = load_image_with_exif(str(image_path))
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)  # PIL為RGB, OpenCV為BGR
         if image is None:
             raise ValueError(f"無法讀取圖像: {image_path}")
         

@@ -147,9 +147,11 @@ def extract_ingredients(text: str, lang: str) -> List[str]:
     
     for line in lines:
         # 檢查是否進入成分區段
+        found_keyword = False
         for keyword in keywords:
             if keyword in line:
                 in_ingredient_section = True
+                found_keyword = True
                 # 嘗試提取冒號後的內容作為成分
                 if ':' in line or '：' in line:
                     parts = re.split(r'[:：]', line, 1)
@@ -164,9 +166,7 @@ def extract_ingredients(text: str, lang: str) -> List[str]:
                     if dose_matches:
                         ingredients.append(clean_text(line.strip()))
                         break
-        
-        # 如果已經在成分區段內，繼續提取下面的行，直到遇到可能的結束標記
-        elif in_ingredient_section:
+        if not found_keyword and in_ingredient_section:
             # 如果是空行或者遇到其他區段關鍵詞，退出成分區段
             if not line.strip() or contains_section_keywords(line, lang, exclude=INGREDIENT_KEYWORDS[lang]):
                 in_ingredient_section = False

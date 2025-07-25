@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import json
-from PIL import Image
+from PIL import Image, ExifTags
 import io
 import os
 import time
@@ -20,6 +20,25 @@ st.markdown("上傳藥盒圖像，自動識別語言、辨識文字並提取藥�
 # 創建標籤頁
 tab1, tab2, tab3 = st.tabs(["上傳圖像", "處理結果", "使用說明"])
 
+def load_and_fix_image(file):
+    image = Image.open(file)
+    try:
+        for orientation in ExifTags.TAGS.keys():
+            if ExifTags.TAGS[orientation] == 'Orientation':
+                break
+        exif = image._getexif()
+        if exif is not None:
+            orientation_value = exif.get(orientation, None)
+            if orientation_value == 3:
+                image = image.rotate(180, expand=True)
+            elif orientation_value == 6:
+                image = image.rotate(270, expand=True)
+            elif orientation_value == 8:
+                image = image.rotate(90, expand=True)
+    except Exception:
+        pass
+    return image
+
 with tab1:
     st.header("上傳藥盒圖像")
     
@@ -30,13 +49,13 @@ with tab1:
         st.markdown("### 藥盒正面")
         front_image = st.file_uploader("上傳藥盒正面圖像", type=["jpg", "jpeg", "png"], key="front")
         if front_image:
-            st.image(front_image, caption="藥盒正面", use_column_width=True)
+            st.image(load_and_fix_image(front_image), caption="藥盒正面", use_container_width=True)
     
     with col2:
         st.markdown("### 藥盒背面 (選填)")
         back_image = st.file_uploader("上傳藥盒背面圖像", type=["jpg", "jpeg", "png"], key="back")
         if back_image:
-            st.image(back_image, caption="藥盒背面", use_column_width=True)
+            st.image(load_and_fix_image(back_image), caption="藥盒背面", use_container_width=True)
     
     # 處理按鈕
     if st.button("開始處理", type="primary"):

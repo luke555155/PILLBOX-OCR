@@ -1,21 +1,20 @@
+import logging
+import os
+
 import cv2
 import numpy as np
-import logging
-import torch
-from typing import List, Tuple, Optional, Dict, Union
-from pathlib import Path
-import os
+from ultralytics import YOLO
 
 logger = logging.getLogger(__name__)
 
 # YOLO模型路徑
-YOLO_MODEL_PATH = os.environ.get("YOLO_MODEL_PATH", "models/yolo/best.pt")
+YOLO_MODEL_PATH = os.environ.get("YOLO_MODEL_PATH", "models/yolo/yolov9c.pt")
 
 # 嘗試加載YOLO模型（如果存在）
 try:
     if os.path.exists(YOLO_MODEL_PATH):
         logger.info(f"嘗試加載YOLO模型: {YOLO_MODEL_PATH}")
-        model = torch.hub.load('ultralytics/yolov5', 'custom', path=YOLO_MODEL_PATH)
+        model = YOLO('models/yolo/yolov9c.pt')
         model.conf = 0.25  # 信心閾值
         YOLO_AVAILABLE = True
     else:
