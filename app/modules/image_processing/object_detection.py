@@ -4,6 +4,7 @@ import os
 import cv2
 import numpy as np
 from ultralytics import YOLO
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -52,26 +53,55 @@ def detect_with_yolo(image: np.ndarray) -> np.ndarray:
     try:
         # 執行YOLO預測
         results = model(image)
-        
-        # 檢查是否檢測到物體
-        if len(results.xyxy[0]) == 0:
+        boxes = results[0].boxes if isinstance(results, list) and len(results) > 0 else None
+        if boxes is None or boxes.xyxy is None or boxes.xyxy.shape[0] == 0:
             logger.warning("未檢測到藥盒，返回原始圖像")
             return image
-            
-        # 獲取最大可能性的檢測框
-        detection = results.xyxy[0][0].cpu().numpy()
+        # 獲取最大可能性的檢測框（這裡預設取第一個）
+        detection = boxes.xyxy[0].cpu().numpy()
         x1, y1, x2, y2 = map(int, detection[:4])
-        
         # 裁剪圖像
         cropped = image[y1:y2, x1:x2]
-        logger.info(f"成功檢測到藥盒，置信度: {detection[4]:.2f}")
-        
+        conf = float(boxes.conf[0]) if hasattr(boxes, 'conf') else 0.0
+        logger.info(f"成功檢測到藥盒，置信度: {conf:.2f}")
         return cropped
-        
     except Exception as e:
         logger.error(f"YOLO檢測失敗: {str(e)}")
         logger.info("轉換到備用方法")
         return detect_with_contours(image)
+
+def detect_with_yolo_and_draw(image: np.ndarray) -> dict:
+    """
+    使用YOLO模型檢測藥盒，並在原圖上畫框，回傳base64圖片與偵測資訊
+    返回: {'image_with_box': base64 str, 'info': {...}}
+    """
+    if not YOLO_AVAILABLE:
+        return {"image_with_box": None, "info": None}
+    try:
+        results = model(image)
+        boxes = results[0].boxes if isinstance(results, list) and len(results) > 0 else None
+        if boxes is None or boxes.xyxy is None or boxes.xyxy.shape[0] == 0:
+            return {"image_with_box": None, "info": None}
+        detection = boxes.xyxy[0].cpu().numpy()
+        x1, y1, x2, y2 = map(int, detection[:4])
+        conf = float(boxes.conf[0]) if hasattr(boxes, 'conf') else 0.0
+        cls = int(boxes.cls[0]) if hasattr(boxes, 'cls') else None
+        # 畫框
+        image_with_box = image.copy()
+        cv2.rectangle(image_with_box, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        # 轉base64
+        _, buffer = cv2.imencode('.jpg', image_with_box)
+        img_b64 = base64.b64encode(buffer).decode('utf-8')
+        info = {
+            "box": [int(x1), int(y1), int(x2), int(y2)],
+            "confidence": conf,
+            "class": cls
+        }
+        logger.info(f"YOLO檢測成功")
+        return {"image_with_box": img_b64, "info": info}
+    except Exception as e:
+        logger.error(f"YOLO檢測失敗: {str(e)}")
+        return {"image_with_box": None, "info": None}
 
 def detect_with_contours(image: np.ndarray) -> np.ndarray:
     """

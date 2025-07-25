@@ -86,3 +86,20 @@ async def upload_images(
     except Exception as e:
         logger.error(f"上傳圖像時發生錯誤: {str(e)}")
         raise HTTPException(status_code=500, detail=f"上傳圖像時發生錯誤: {str(e)}") 
+
+@router.delete("/delete-batch/{batch_id}")
+async def delete_batch(batch_id: str):
+    """
+    刪除指定批次ID的上傳目錄
+    - **batch_id**: 批次ID
+    """
+    batch_dir = UPLOAD_DIR / batch_id
+    if not batch_dir.exists() or not batch_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"找不到批次ID: {batch_id}")
+    try:
+        shutil.rmtree(batch_dir)
+        logger.info(f"已刪除批次目錄: {batch_dir}")
+        return {"message": f"已刪除批次 {batch_id}"}
+    except Exception as e:
+        logger.error(f"刪除批次目錄失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"刪除批次目錄失敗: {str(e)}") 

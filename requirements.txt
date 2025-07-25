@@ -2,7 +2,7 @@ fastapi==0.104.1
 uvicorn==0.23.2
 pydantic==2.4.2
 python-multipart==0.0.6
-numpy>=2.0.0
+numpy<2.0.0
 opencv-python>=4.8.1.78
 Pillow>=10.0.1
 pytesseract>=0.3.10

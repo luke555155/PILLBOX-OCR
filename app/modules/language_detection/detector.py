@@ -23,36 +23,21 @@ LANGUAGE_MAP = {
 # 預設語言
 DEFAULT_LANGUAGE = 'zh-tw'
 
-def detect_language(text: str) -> str:
+def detect_language_langdetect(text: str) -> str:
     """
-    檢測文本中的主要語言
-    
-    參數:
-        text: 要檢測的文本
-        
-    返回:
-        語言代碼 (如 'zh-tw', 'en', 'ja')
+    檢測文本中的主要語言 (langdetect fallback)
     """
     if not text or len(text.strip()) < 5:
         logger.warning(f"文本過短或為空，無法進行可靠的語言偵測: '{text}'")
         return DEFAULT_LANGUAGE
-    
     try:
-        # 使用langdetect進行語言偵測
         detected_lang = langdetect_detect(text)
         logger.info(f"偵測到語言: {detected_lang}")
-        
-        # 映射到支援的語言代碼
         mapped_lang = LANGUAGE_MAP.get(detected_lang, DEFAULT_LANGUAGE)
-        
-        # 特殊處理：中文的繁簡區分
         if detected_lang == 'zh':
-            # 檢測是繁體還是簡體中文
             mapped_lang = detect_chinese_variant(text)
-        
         logger.info(f"映射後語言: {mapped_lang}")
         return mapped_lang
-        
     except LangDetectException as e:
         logger.error(f"語言偵測失敗: {str(e)}")
         return DEFAULT_LANGUAGE
@@ -86,12 +71,10 @@ def detect_chinese_variant(text: str) -> str:
 # 如果有FastText或CLD3模型，可以添加更複雜的檢測邏輯
 try:
     import fasttext
-    # 嘗試載入語言檢測模型
     FASTTEXT_MODEL_PATH = os.environ.get("FASTTEXT_MODEL_PATH", "models/fasttext/lid.176.bin")
     if os.path.exists(FASTTEXT_MODEL_PATH):
         logger.info(f"載入FastText語言檢測模型: {FASTTEXT_MODEL_PATH}")
         fasttext_model = fasttext.load_model(FASTTEXT_MODEL_PATH)
-        
         def detect_language_fasttext(text: str) -> str:
             """使用FastText檢測語言"""
             try:
@@ -99,21 +82,18 @@ try:
                 lang_code = result[0][0].replace('__label__', '')
                 confidence = result[1][0]
                 logger.info(f"FastText檢測語言: {lang_code}, 信心度: {confidence:.4f}")
-                
-                # 映射語言代碼
                 if lang_code.startswith('zh'):
-                    # 檢測是繁體還是簡體
                     return detect_chinese_variant(text)
                 else:
                     return LANGUAGE_MAP.get(lang_code, DEFAULT_LANGUAGE)
             except Exception as e:
                 logger.error(f"FastText語言檢測失敗: {str(e)}")
-                return detect_language(text)  # 回落到基本檢測
-        
-        # 覆蓋原始檢測函數
+                return detect_language_langdetect(text)  # 直接 fallback 到 langdetect
         detect_language = detect_language_fasttext
         logger.info("成功啟用FastText語言檢測")
     else:
         logger.warning(f"找不到FastText模型: {FASTTEXT_MODEL_PATH}，使用基本語言檢測")
+        detect_language = detect_language_langdetect
 except ImportError:
-    logger.info("未安裝FastText，使用基本語言檢測") 
+    logger.info("未安裝FastText，使用基本語言檢測")
+    detect_language = detect_language_langdetect 

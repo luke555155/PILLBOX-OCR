@@ -6,6 +6,7 @@ import io
 import os
 import time
 from typing import Dict, List, Optional, Any
+import base64
 
 # 後端API URL
 API_URL = os.environ.get("API_URL", "http://localhost:8000/api")
@@ -185,14 +186,39 @@ with tab2:
                                 if st.button("複製文字", key=f"copy_{i}"):
                                     st.code(result.get("rawText", ""), language="text")
                                     st.success("文字已複製到剪貼簿！")
+                        
+                        # 顯示YOLO畫框圖與資訊
+                        yolo_img_b64 = result.get("yolo_image_with_box")
+                        yolo_info = result.get("yolo_info")
+                        if yolo_img_b64:
+                            img_bytes = base64.b64decode(yolo_img_b64)
+                            img = Image.open(io.BytesIO(img_bytes))
+                            st.image(img, caption="YOLO標註圖", use_container_width=True)
+                        else:
+                            st.info("未偵測到物件或YOLO未啟用")
+                        if yolo_info:
+                            st.markdown("**YOLO 偵測資訊**:")
+                            st.json(yolo_info)
             
             # 提供重新開始按鈕
             if st.button("重新上傳"):
                 # 清除session_state
+                batch_id = st.session_state.get("batch_id")
+                if batch_id:
+                    try:
+                        delete_response = requests.delete(f"{API_URL}/delete-batch/{batch_id}")
+                        if delete_response.status_code == 200:
+                            st.info("已刪除上傳檔案")
+                        else:
+                            st.warning(f"刪除檔案失敗: {delete_response.text}")
+                    except Exception as e:
+                        st.warning(f"刪除檔案時發生錯誤: {str(e)}")
                 if "image_ids" in st.session_state:
                     del st.session_state.image_ids
                 if "ocr_results" in st.session_state:
                     del st.session_state.ocr_results
+                if "batch_id" in st.session_state:
+                    del st.session_state.batch_id
                 # 切換回上傳標籤頁
                 st.rerun()
     else:
