@@ -6,7 +6,6 @@ numpy>=2.0.0
 opencv-python>=4.8.1.78
 Pillow>=10.0.1
 pytesseract>=0.3.10
-easyocr>=1.7.1
 fasttext>=0.9.2
 langdetect>=1.0.9
 yolov5>=7.0.13
