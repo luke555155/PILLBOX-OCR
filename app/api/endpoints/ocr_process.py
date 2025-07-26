@@ -26,6 +26,7 @@ UPLOAD_DIR = PathLib("uploads")
 class OCRRequest(BaseModel):
     image_ids: List[str]
     batch_id: str
+    ocr_mode: Optional[str] = 'local'
 
 class MedicineInfo(BaseModel):
     medicineName: Optional[str] = None
@@ -81,28 +82,32 @@ async def process_ocr(request: OCRRequest, background_tasks: BackgroundTasks):
             }
             # 2.2 裁切圖供OCR
             detected_box = det_result["cropped"] if det_result["cropped"] is not None else preprocessed_image
-            # 3. Tesseract OSD模式取得文字（僅console顯示）
-            logger.info(f"3. Tesseract OSD模式取得文字: {image_id}")
-            try:
-                import pytesseract
-                osd_text = pytesseract.image_to_string(detected_box, config='--psm 3')
-                logger.info(f">>> [OSD模式文字]" + osd_text)
-            except Exception as e:
-                logger.warning(f"[OSD模式失敗] {image_id}: {str(e)}")
-            # 4. 初步OCR以獲取語言樣本
-            logger.info(f"4. 執行初步OCR: {image_id}")
-            sample_text = perform_ocr(detected_box, "auto")  # 自動模式
-            logger.info(f">>> " + sample_text)
-            # 5. 語言檢測
-            logger.info(f"執行語言檢測: {image_id}")
-            detected_lang = detect_language(sample_text)
-            logger.info(f">>> " + detected_lang)
-            # 6. 精確OCR處理
-            logger.info(f"使用 {detected_lang} 模型執行精確OCR: {image_id}")
             import time
             start_time = time.time()
-            ocr_text = perform_ocr(detected_box, detected_lang)
-            logger.info(f">>> " + ocr_text)
+            if request.ocr_mode == 'gcp':
+                # 直接用 GCP OCR，省略步驟3~6
+                ocr_text, gcp_locale = perform_ocr(detected_box, mode='gcp')
+                detected_lang = gcp_locale or 'en'
+            else:
+                # 3. Tesseract OSD模式取得文字（僅console顯示）
+                logger.info(f"3. Tesseract OSD模式取得文字: {image_id}")
+                try:
+                    import pytesseract
+                    osd_text = pytesseract.image_to_string(detected_box, config='--psm 3')
+                    logger.info(f">>> [OSD模式文字]" + osd_text)
+                except Exception as e:
+                    logger.warning(f"[OSD模式失敗] {image_id}: {str(e)}")
+                # 4. 初步OCR以獲取語言樣本
+                logger.info(f"4. 執行初步OCR: {image_id}")
+                sample_text = perform_ocr(detected_box, "auto")
+                logger.info(f">>> " + sample_text)
+                # 5. 語言檢測
+                logger.info(f"執行語言檢測: {image_id}")
+                detected_lang = detect_language(sample_text)
+                logger.info(f">>> " + detected_lang)
+                # 6. 精確OCR處理
+                logger.info(f"使用 {detected_lang} 模型執行精確OCR: {image_id}")
+                ocr_text = perform_ocr(detected_box, detected_lang)
             # 7. 藥品資訊抽取
             logger.info(f"從OCR文字中抽取藥品資訊: {image_id}")
             medicine_info = extract_medicine_info(ocr_text, detected_lang)

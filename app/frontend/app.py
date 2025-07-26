@@ -59,44 +59,69 @@ with tab1:
             st.image(load_and_fix_image(back_image), caption="藥盒背面", use_container_width=True)
     
     # 處理按鈕
-    if st.button("開始處理", type="primary"):
-        if not front_image:
-            st.error("請至少上傳藥盒正面圖像")
-        else:
-            with st.spinner("上傳圖像中..."):
-                # 準備上傳的檔案
-                if front_image:
-                    front_image.seek(0)
-                if back_image:
-                    back_image.seek(0)
-                files = {"front_image": front_image}
-                if back_image:
-                    files["back_image"] = back_image
-                
-                try:
-                    # 上傳圖像
-                    upload_response = requests.post(
-                        f"{API_URL}/upload-images",
-                        files=files
-                    )
-                    
-                    if upload_response.status_code == 200:
-                        upload_data = upload_response.json()
-                        image_ids = upload_data.get("image_ids", [])
-                        batch_id = upload_data.get("batch_id", None)
-                        st.success(f"成功上傳了 {len(image_ids)} 張圖像")
-                        
-                        # 儲存圖像ID和批次ID到session_state以便後續處理
-                        st.session_state.image_ids = image_ids
-                        st.session_state.batch_id = batch_id
-                        
-                        # 自動切換到處理結果標籤頁並開始處理
-                        st.rerun()
-                    else:
-                        st.error(f"上傳失敗: {upload_response.text}")
-                        
-                except Exception as e:
-                    st.error(f"處理出錯: {str(e)}")
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        if st.button("開始處理(本地版)", type="primary"):
+            if not front_image:
+                st.error("請至少上傳藥盒正面圖像")
+            else:
+                with st.spinner("上傳圖像中..."):
+                    if front_image:
+                        front_image.seek(0)
+                    if back_image:
+                        back_image.seek(0)
+                    files = {"front_image": front_image}
+                    if back_image:
+                        files["back_image"] = back_image
+                    try:
+                        upload_response = requests.post(
+                            f"{API_URL}/upload-images",
+                            files=files
+                        )
+                        if upload_response.status_code == 200:
+                            upload_data = upload_response.json()
+                            image_ids = upload_data.get("image_ids", [])
+                            batch_id = upload_data.get("batch_id", None)
+                            st.success(f"成功上傳了 {len(image_ids)} 張圖像")
+                            st.session_state.image_ids = image_ids
+                            st.session_state.batch_id = batch_id
+                            st.session_state.ocr_mode = 'local'
+                            st.rerun()
+                        else:
+                            st.error(f"上傳失敗: {upload_response.text}")
+                    except Exception as e:
+                        st.error(f"處理出錯: {str(e)}")
+    with col_btn2:
+        if st.button("開始處理(GCP Vision版)", type="secondary"):
+            if not front_image:
+                st.error("請至少上傳藥盒正面圖像")
+            else:
+                with st.spinner("上傳圖像中..."):
+                    if front_image:
+                        front_image.seek(0)
+                    if back_image:
+                        back_image.seek(0)
+                    files = {"front_image": front_image}
+                    if back_image:
+                        files["back_image"] = back_image
+                    try:
+                        upload_response = requests.post(
+                            f"{API_URL}/upload-images",
+                            files=files
+                        )
+                        if upload_response.status_code == 200:
+                            upload_data = upload_response.json()
+                            image_ids = upload_data.get("image_ids", [])
+                            batch_id = upload_data.get("batch_id", None)
+                            st.success(f"成功上傳了 {len(image_ids)} 張圖像")
+                            st.session_state.image_ids = image_ids
+                            st.session_state.batch_id = batch_id
+                            st.session_state.ocr_mode = 'gcp'
+                            st.rerun()
+                        else:
+                            st.error(f"上傳失敗: {upload_response.text}")
+                    except Exception as e:
+                        st.error(f"處理出錯: {str(e)}")
 
 with tab2:
     st.header("處理結果")
@@ -107,12 +132,13 @@ with tab2:
         if "ocr_results" not in st.session_state:
             with st.spinner("正在進行OCR處理..."):
                 try:
-                    # 發送OCR處理請求
+                    ocr_mode = st.session_state.get("ocr_mode", "local")
                     process_response = requests.post(
                         f"{API_URL}/process-ocr",
                         json={
                             "image_ids": st.session_state.image_ids,
-                            "batch_id": st.session_state.batch_id
+                            "batch_id": st.session_state.batch_id,
+                            "ocr_mode": ocr_mode
                         }
                     )
                     

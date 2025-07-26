@@ -99,43 +99,51 @@ def extract_medicine_info(text: str, lang: str) -> Dict[str, Any]:
     return result
 
 def extract_medicine_name(text: str, lang: str) -> Optional[str]:
-    """抽取藥品名稱"""
-    # 使用關鍵詞查找相關行
-    lines = text.split('\n')
+    """強化抽取藥品名稱，支援品牌/加強錠/副標題合併"""
+    lines = [clean_text(l) for l in text.split('\n') if clean_text(l)]
     keywords = MEDICINE_NAME_KEYWORDS[lang]
-    
-    # 首先查找包含關鍵詞的行
+    quantity_keywords = QUANTITY_KEYWORDS[lang]
+    ingredient_keywords = INGREDIENT_KEYWORDS[lang]
+    # 1. 優先找有關鍵詞的行
     potential_lines = []
     for line in lines:
         for keyword in keywords:
             if keyword in line:
                 potential_lines.append(line)
                 break
-    
     if potential_lines:
-        # 取第一個匹配行，並嘗試提取冒號或其他分隔符後的內容
         for line in potential_lines:
-            # 嘗試冒號分隔
             if ':' in line or '：' in line:
                 parts = re.split(r'[:：]', line, 1)
                 if len(parts) > 1 and parts[1].strip():
                     return clean_text(parts[1].strip())
-            # 如果沒有分隔符，但行中同時包含「品名」和其他文字，嘗試提取
             elif '品名' in line and len(line) > 3:
                 parts = line.split('品名', 1)
                 if len(parts) > 1 and parts[1].strip():
                     return clean_text(parts[1].strip())
                 else:
                     return clean_text(line)
-    
-    # 如果沒有找到明確的藥品名稱行，嘗試使用啟發式規則
-    # 通常藥品名稱會在前幾行
+    # 2. 無關鍵詞時，前5行找「非關鍵詞、非數量、非成分」且2~8字的行
     first_lines = lines[:min(5, len(lines))]
-    for line in first_lines:
-        if line.strip() and not contains_only_keywords(line, lang):
-            return clean_text(line.strip())
-    
+    for idx, line in enumerate(first_lines):
+        # 排除只含關鍵詞、數量、成分的行
+        if contains_only_keywords(line, lang):
+            continue
+        if any(kw in line for kw in quantity_keywords+ingredient_keywords):
+            continue
+        # 排除明顯為數量的行
+        if re.match(r'^\d+\s*(錠|粒|包|瓶|支|片|劑)$', line):
+            continue
+        # 字數合理
+        if 2 <= len(line) <= 8:
+            # 嘗試合併下一行（如加強錠、副標題）
+            if idx+1 < len(first_lines):
+                next_line = first_lines[idx+1]
+                if 2 <= len(next_line) <= 6 and not contains_only_keywords(next_line, lang):
+                    return f"{line} {next_line}".strip()
+            return line
     return None
+
 
 def extract_ingredients(text: str, lang: str) -> List[str]:
     """抽取藥品成分"""
@@ -193,33 +201,31 @@ def extract_ingredients(text: str, lang: str) -> List[str]:
     return list(set(ingredients))
 
 def extract_quantity(text: str, lang: str) -> Optional[str]:
-    """抽取藥品數量"""
-    lines = text.split('\n')
+    """強化抽取藥品數量，支援單獨一行如16錠、20粒等"""
+    lines = [clean_text(l) for l in text.split('\n') if clean_text(l)]
     keywords = QUANTITY_KEYWORDS[lang]
-    
-    # 首先查找包含數量關鍵詞的行
+    unit_pattern = UNIT_PATTERNS.get(lang, UNIT_PATTERNS['en'])
+    # 1. 先找有關鍵詞的行
     for line in lines:
         for keyword in keywords:
             if keyword in line:
-                # 嘗試提取單位數量
-                unit_pattern = UNIT_PATTERNS.get(lang, UNIT_PATTERNS['en'])
                 unit_matches = re.findall(unit_pattern, line)
                 if unit_matches:
                     return unit_matches[0]
-                
-                # 如果沒有找到單位數量，查找劑量
+                # 沒有單位，找劑量
                 dose_pattern = DOSE_PATTERNS.get(lang, DOSE_PATTERNS['en'])
                 dose_matches = re.findall(dose_pattern, line)
                 if dose_matches:
                     return dose_matches[0]
-    
-    # 如果通過關鍵詞沒有找到，直接尋找所有可能的單位數量
-    for line in lines:
-        unit_pattern = UNIT_PATTERNS.get(lang, UNIT_PATTERNS['en'])
+    # 2. 直接找所有可能的單位數量（如16錠、20粒）
+    candidates = []
+    for idx, line in enumerate(lines):
         unit_matches = re.findall(unit_pattern, line)
         if unit_matches:
-            return unit_matches[0]
-    
+            candidates.append((idx, unit_matches[0]))
+    if candidates:
+        # 優先取最靠近藥品名稱的那一行
+        return candidates[0][1]
     return None
 
 def clean_text(text: str) -> str:
